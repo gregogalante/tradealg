@@ -17,6 +17,144 @@ class TradealgTest < Minitest::Test
     assert_equal([], tradealg.operations)
   end
 
+  def test_report
+    report = tradealg.report
+
+    # The report should include a key for every public method of the class
+    assert_equal(Tradealg.public_instance_methods(false).sort.reject { |m| Tradealg::REPORT_EXCLUSIONS.include?(m) }, report.keys.sort)
+  end
+
+  # PROFIT FACTOR METHODS
+  ####################################################################################################################
+
+  def test_profit_factor
+    # Test profit_factor_at
+    # The profit factor at the beginning is 0
+    assert_equal(0, tradealg.profit_factor_at(before_first_timestamp))
+    # After the first day, the profit factor is 0
+    assert_equal(0, tradealg.profit_factor_at(timestamp_at(1)))
+    # After the second day, the profit factor is 0
+    assert_equal(0, tradealg.profit_factor_at(timestamp_at(2)))
+    # After the third day, the profit factor is 0
+    assert_equal(0, tradealg.profit_factor_at(timestamp_at(3)))
+    # After the fourth day, the profit factor is 999_999
+    assert_equal(999_999, tradealg.profit_factor_at(timestamp_at(4)))
+    # After the fifth day, the profit factor is 999_999
+    assert_equal(999_999, tradealg.profit_factor_at(timestamp_at(5)))
+    # After the sixth day, the profit factor is 2
+    assert_equal(2, tradealg.profit_factor_at(timestamp_at(6)))
+    # After the seventh day, the profit factor is 1
+    assert_equal(1, tradealg.profit_factor_at(timestamp_at(7)))
+
+    # TODO: Write more tests
+  end
+
+  # WIN RATE PERC METHODS
+  ####################################################################################################################
+
+  def test_win_rate_perc
+    # Test win_rate_perc_at
+    # The win rate percentage at the beginning is 0
+    assert_equal(0, tradealg.win_rate_perc_at(before_first_timestamp))
+    # After the first day, the win rate is 0
+    assert_equal(0, tradealg.win_rate_perc_at(timestamp_at(1)))
+    # After the second day, the win rate is 0
+    assert_equal(0, tradealg.win_rate_perc_at(timestamp_at(2)))
+    # After the third day, the win rate is 0
+    assert_equal(0, tradealg.win_rate_perc_at(timestamp_at(3)))
+    # After the fourth day, the win rate is 100
+    assert_equal(100, tradealg.win_rate_perc_at(timestamp_at(4)))
+    # After the fifth day, the win rate is 100
+    assert_equal(100, tradealg.win_rate_perc_at(timestamp_at(5)))
+    # After the sixth day, the win rate is 50
+    assert_equal(66.67, tradealg.win_rate_perc_at(timestamp_at(6)).round(2))
+    # After the seventh day, the win rate is 50
+    assert_equal(50, tradealg.win_rate_perc_at(timestamp_at(7)))
+
+    # TODO: Write more tests
+  end
+
+  # EXPECTANCY METHODS
+  ####################################################################################################################
+
+  def test_expectancy
+    # Test expectancy_at
+    # The expectancy at the beginning is 0
+    assert_equal(0, tradealg.expectancy_at(before_first_timestamp))
+    # After the first day, the expectancy is 0
+    assert_equal(0, tradealg.expectancy_at(timestamp_at(1)))
+    # After the second day, the expectancy is 0
+    assert_equal(0, tradealg.expectancy_at(timestamp_at(2)))
+    # After the third day, the expectancy is 0
+    assert_equal(0, tradealg.expectancy_at(timestamp_at(3)))
+    # After the fourth day, the expectancy is 10
+    assert_equal(10, tradealg.expectancy_at(timestamp_at(4)))
+    # After the fifth day, the expectancy is 10
+    assert_equal(10, tradealg.expectancy_at(timestamp_at(5)))
+    # After the sixth day, the expectancy is 10
+    assert_equal(10, tradealg.expectancy_at(timestamp_at(6)))
+    # After the seventh day, the expectancy is 10
+    assert_equal(10, tradealg.expectancy_at(timestamp_at(7)))
+
+    # Test highest_expectancy_between
+    # The highest expectancy without timestamps is 10
+    assert_equal(10, tradealg.highest_expectancy_between)
+    # The highest expectancy between the first and the last day is 10
+    assert_equal(10, tradealg.highest_expectancy_between(first_timestamp, last_timestamp))
+    # The highest expectancy between the fourth and the fifth day is 10
+    assert_equal(10, tradealg.highest_expectancy_between(timestamp_at(4), timestamp_at(5)))
+
+    # Test average_expectancy_between
+    # The average expectancy without timestamps is 10
+    assert_equal(10, tradealg.average_expectancy_between)
+  end
+
+  # CONSISTENCY PERC METHODS
+  ####################################################################################################################
+
+  def test_consistency_perc
+    # Test consistency_perc_at
+    # The consistency percentage at the beginning is 0
+    assert_equal(0, tradealg.consistency_perc_at(before_first_timestamp))
+
+    # TODO: Write more tests
+  end
+
+  # DRAWDOWN PERC METHODS
+  ####################################################################################################################
+
+  def test_drawdown_perc
+    # Test drawdown_perc_at
+    # The drawdown percentage at the beginning is 0
+    assert_equal(0, tradealg.drawdown_perc_at(before_first_timestamp))
+    # After the first day, the drawdown percentage is 0
+    assert_equal(0, tradealg.drawdown_perc_at(timestamp_at(1)))
+    # After the second day, the drawdown percentage is 0
+    assert_equal(0, tradealg.drawdown_perc_at(timestamp_at(2)))
+    # After the third day, the drawdown percentage is 0
+    assert_equal(0, tradealg.drawdown_perc_at(timestamp_at(3)))
+    # After the fourth day, the drawdown percentage is 0
+    assert_equal(0, tradealg.drawdown_perc_at(timestamp_at(4)))
+    # After the fifth day, the drawdown percentage is 0
+    assert_equal(0, tradealg.drawdown_perc_at(timestamp_at(5)))
+    # After the sixth day, the drawdown percentage is 10 * 100 / 195
+    assert_equal(10 * 100.0 / 195, tradealg.drawdown_perc_at(timestamp_at(6)))
+    # After the seventh day, the drawdown percentage is 20 * 100 / 195
+    assert_equal(20 * 100.0 / 195, tradealg.drawdown_perc_at(timestamp_at(7)))
+
+    # Test highest_drawdown_perc_between
+    # The highest drawdown percentage without timestamps is 20 * 100 / 195
+    assert_equal(20 * 100.0 / 195, tradealg.highest_drawdown_perc_between)
+    # The highest drawdown percentage between the first and the last day is 20 * 100 / 195
+    assert_equal(20 * 100.0 / 195, tradealg.highest_drawdown_perc_between(first_timestamp, last_timestamp))
+    # The highest drawdown percentage between the sixth and the seventh day is 20 * 100 / 195
+    assert_equal(20 * 100.0 / 195, tradealg.highest_drawdown_perc_between(timestamp_at(6), timestamp_at(7)))
+
+    # Test average_drawdown_perc_between
+    # The average drawdown percentage without timestamps is 2.20
+    assert_equal(2.20, tradealg.average_drawdown_perc_between.round(2))
+  end
+
   # DRAWDOWN METHODS
   ####################################################################################################################
 
@@ -163,6 +301,9 @@ class TradealgTest < Minitest::Test
 
   private
 
+  # Helpers to work with default operations
+  ####################################################################################################################
+
   def tradealg
     @tradealg ||= Tradealg.new(OPERATIONS)
   end
@@ -181,5 +322,31 @@ class TradealgTest < Minitest::Test
 
   def timestamp_at(day)
     Time.new(2000, 1, day, 0, 0, 0)
+  end
+
+  # Helpers to generate random operations
+  ####################################################################################################################
+
+  def random_operations(size = 10)
+    balance = 100.0 # corresponds to the first deposit
+
+    operations = [{
+      type: :deposit,
+      value: balance,
+      timestamp: Time.new(2000, 1, 1, 0, 0, 0)
+    }]
+
+    (size - 1).times do |i|
+      type = i.even? ? :buy : :sell
+      timestamp = Time.new(2000, 1, i + 2, 0, 0, 0)
+
+      value = rand(1..10).to_f * rand(-1..1)
+      value = -value if balance + value < 0 # change sign of value if the new balance would be negative
+
+      operations << { type: type, value: value, timestamp: timestamp }
+      balance += value
+    end
+
+    operations
   end
 end

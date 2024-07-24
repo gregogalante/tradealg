@@ -5,41 +5,678 @@ class Tradealg
     @operations = setup_operations(operations)
   end
 
-  # ----------------------------------------------------
-  # EQUITY   _history (history of monetary equity/balance) ✅ balance_history
-  # EQUITY_MIN ✅ lowest_balance_between
-  # EQUITY_MAX ✅ highest_balance_between
-  # GAIN_MONETARY   _history (history of monetary gain/P&L) ✅ gain_history
-  # GAIN_PERCENT   _history (history of percent gain/P&L relativo ad EQUITY iniziale assoluta)
-  # GAIN_ABSOLUTE (gain inteso come gain percentuale sul totale dei depositi: i nuovi depositi influenzano l'absolute gain)
-  # TOTAL PROFIT = GAIN_MONETARY _between all available history (not selected history)
-  # DRAWDOWN_MONETARY   _history (history of monetary drawdown)
-  # DRAWDOWN_PERCENT   _history (history of percent drawdown relativo ad EQUITY iniziale assoluta)
-  # MAX_DRAWDOWN_MONETARY
-  # MAX_DRAWDOWN_PERCENT
-  # AVG_DRAWDOWN_MONETARY
-  # AVG_DRAWDOWN_PERCENT
-  # CONSISTENCY
-  # EXPECTANCY
-  # PROFIT FACTOR
-  # WIN RATE
-  # WIN RATE LONG
-  # WIN RATE SHORT
-  # RISK REWARD
-  # BEST TRADE
-  # WORST TRADE
-  # AVERAGE WIN
-  # AVERAGE LOSS
-  # MONTHLY PROFIT
-  # MONTHLY DRAWDOWN STANDARD DEVIATION
-  # SORTINO RATIO
-  # MAX DRAWDOWN FROM LAST MONDAY
-  # MAX DRAWDOWN FROM SECOND LAST MONDAY
-  # MAX DRAWDOWN FROM THIRD LAST MONDAY
-  # ACTUAL DRAWDOWN FROM LAST MONDAY
-  # ACTUAL DRAWDOWN FROM SECOND LAST MONDAY
-  # ACTUAL DRAWDOWN FROM THIRD LAST MONDAY
-  # ----------------------------------------------------
+  # This method returns a report with all the available metrics.
+  REPORT_EXCLUSIONS = %i[report].freeze # list of public methods to exclude from the report
+  def report
+    report = {}
+
+    # call all public methods that return a value
+    self.class.instance_methods(false).each do |method|
+      next if REPORT_EXCLUSIONS.include?(method)
+
+      begin
+        report[method] = send(method)
+      rescue ArgumentError => e
+        report[method] = e.message
+      end
+    end
+
+    report
+  end
+
+  # PROFIT FACTOR METHODS
+  ####################################################################################################################
+
+  # This function returns the profit factor history of the system.
+  # The profit factor is calculated by dividing the sum of all winning operations by the sum of all losing operations.
+  # The profit factor history is an array of hashes with the following keys:
+  # - :timestamp: The timestamp of the operation.
+  # - :value: The profit factor of the system at that timestamp.
+  # NOTE: In case of no losing operations, the profit factor is set to 999999.
+  def profit_factor_history
+    return @profit_factor_history if defined? @profit_factor_history
+
+    @profit_factor_history = []
+
+    sum_of_win_operations = 0
+    sum_of_loss_operations = 0
+    @operations.each do |operation|
+      next unless %i[buy sell].include?(operation[:type])
+
+      operation[:value].positive? ? sum_of_win_operations += operation[:value] : sum_of_loss_operations += operation[:value]
+      profit_factor = sum_of_loss_operations.zero? ? 999_999 : sum_of_win_operations / sum_of_loss_operations.abs
+      @profit_factor_history << { timestamp: operation[:timestamp], value: profit_factor }
+    end
+
+    @profit_factor_history
+  end
+
+  # This function return the profit factor of the system at a given timestamp.
+  def profit_factor_at(timestamp = Time.now)
+    last_profit_factor = 0
+
+    profit_factor_history.each do |profit_factor|
+      break if profit_factor[:timestamp] > timestamp
+      last_profit_factor = profit_factor[:value]
+    end
+
+    last_profit_factor
+  end
+
+  # This function returns the highest profit factor of the system between two timestamps.
+  # If no timestamps are provided, it will return the highest profit factor of the system.
+  def highest_profit_factor_between(start_time = nil, end_time = nil)
+    start_time ||= default_start_time
+    end_time ||= default_end_time
+
+    highest_profit_factor = nil
+
+    profit_factor_history.each do |profit_factor|
+      break if profit_factor[:timestamp] > end_time
+      next if profit_factor[:timestamp] < start_time
+
+      highest_profit_factor = profit_factor[:value] if highest_profit_factor.nil? || profit_factor[:value] > highest_profit_factor
+    end
+
+    highest_profit_factor
+  end
+
+  # This function returns the lowest profit factor of the system between two timestamps.
+  # If no timestamps are provided, it will return the lowest profit factor of the system.
+  def lowest_profit_factor_between(start_time = nil, end_time = nil)
+    start_time ||= default_start_time
+    end_time ||= default_end_time
+
+    lowest_profit_factor = nil
+
+    profit_factor_history.each do |profit_factor|
+      break if profit_factor[:timestamp] > end_time
+      next if profit_factor[:timestamp] < start_time
+
+      lowest_profit_factor = profit_factor[:value] if lowest_profit_factor.nil? || profit_factor[:value] < lowest_profit_factor
+    end
+
+    lowest_profit_factor
+  end
+
+  # This function returns the average profit factor of the system between two timestamps.
+  # If no timestamps are provided, it will return the average profit factor of the system.
+  def average_profit_factor_between(start_time = nil, end_time = nil)
+    start_time ||= default_start_time
+    end_time ||= default_end_time
+
+    total_profit_factor = 0
+    total_operations = 0
+
+    profit_factor_history.each do |profit_factor|
+      break if profit_factor[:timestamp] > end_time
+      next if profit_factor[:timestamp] < start_time
+
+      total_profit_factor += profit_factor[:value]
+      total_operations += 1
+    end
+
+    total_profit_factor / total_operations
+  end
+
+  # WIN RATE PERC METHODS
+  ####################################################################################################################
+
+  # This function returns the win rate percentage history of the system.
+  # The win rate percentage is calculated by dividing the number of win operations by the total number of operations.
+  # The win rate percentage history is an array of hashes with the following keys:
+  # - :timestamp: The timestamp of the operation.
+  # - :value: The win rate percentage of the system at that timestamp.
+  def win_rate_perc_history
+    return @win_rate_perc_history if defined? @win_rate_perc_history
+
+    @win_rate_perc_history = []
+
+    number_of_win_operations = 0
+    number_of_loss_operations = 0
+    @operations.each do |operation|
+      next unless %i[buy sell].include?(operation[:type])
+
+      operation[:value].positive? ? number_of_win_operations += 1 : number_of_loss_operations += 1
+      win_rate_perc = number_of_win_operations.zero? && number_of_loss_operations.zero? ? 0 : number_of_win_operations * 100.0 / (number_of_win_operations + number_of_loss_operations)
+      @win_rate_perc_history << { timestamp: operation[:timestamp], value: win_rate_perc }
+    end
+
+    @win_rate_perc_history
+  end
+
+  # This function return the win rate percentage of the system at a given timestamp.
+  def win_rate_perc_at(timestamp = Time.now)
+    last_win_rate_perc = 0
+
+    win_rate_perc_history.each do |win_rate_perc|
+      break if win_rate_perc[:timestamp] > timestamp
+      last_win_rate_perc = win_rate_perc[:value]
+    end
+
+    last_win_rate_perc
+  end
+
+  # This function returns the highest win rate percentage of the system between two timestamps.
+  # If no timestamps are provided, it will return the highest win rate percentage of the system.
+  def highest_win_rate_perc_between(start_time = nil, end_time = nil)
+    start_time ||= default_start_time
+    end_time ||= default_end_time
+
+    highest_win_rate_perc = nil
+
+    win_rate_perc_history.each do |win_rate_perc|
+      break if win_rate_perc[:timestamp] > end_time
+      next if win_rate_perc[:timestamp] < start_time
+
+      highest_win_rate_perc = win_rate_perc[:value] if highest_win_rate_perc.nil? || win_rate_perc[:value] > highest_win_rate_perc
+    end
+
+    highest_win_rate_perc
+  end
+
+  # This function returns the lowest win rate percentage of the system between two timestamps.
+  # If no timestamps are provided, it will return the lowest win rate percentage of the system.
+  def lowest_win_rate_perc_between(start_time = nil, end_time = nil)
+    start_time ||= default_start_time
+    end_time ||= default_end_time
+
+    lowest_win_rate_perc = nil
+
+    win_rate_perc_history.each do |win_rate_perc|
+      break if win_rate_perc[:timestamp] > end_time
+      next if win_rate_perc[:timestamp] < start_time
+
+      lowest_win_rate_perc = win_rate_perc[:value] if lowest_win_rate_perc.nil? || win_rate_perc[:value] < lowest_win_rate_perc
+    end
+
+    lowest_win_rate_perc
+  end
+
+  # This function returns the average win rate percentage of the system between two timestamps.
+  # If no timestamps are provided, it will return the average win rate percentage of the system.
+  def average_win_rate_perc_between(start_time = nil, end_time = nil)
+    start_time ||= default_start_time
+    end_time ||= default_end_time
+
+    total_win_rate_perc = 0
+    total_operations = 0
+
+    win_rate_perc_history.each do |win_rate_perc|
+      break if win_rate_perc[:timestamp] > end_time
+      next if win_rate_perc[:timestamp] < start_time
+
+      total_win_rate_perc += win_rate_perc[:value]
+      total_operations += 1
+    end
+
+    total_win_rate_perc / total_operations
+  end
+
+  # SAME METHODS BUT FOR LONG HISTORY
+
+  def win_rate_perc_long_history
+    return @win_rate_perc_long_history if defined? @win_rate_perc_long_history
+
+    @win_rate_perc_long_history = []
+
+    number_of_win_operations = 0
+    number_of_loss_operations = 0
+    @operations.each do |operation|
+      next unless operation[:type] == :buy
+
+      operation[:value].positive? ? number_of_win_operations += 1 : number_of_loss_operations += 1
+      win_rate_perc = number_of_win_operations.zero? && number_of_loss_operations.zero? ? 0 : number_of_win_operations * 100.0 / (number_of_win_operations + number_of_loss_operations)
+      @win_rate_perc_long_history << { timestamp: operation[:timestamp], value: win_rate_perc }
+    end
+
+    @win_rate_perc_long_history
+  end
+
+  def win_rate_perc_long_at(timestamp = Time.now)
+    last_win_rate_perc = 0
+
+    win_rate_perc_long_history.each do |win_rate_perc|
+      break if win_rate_perc[:timestamp] > timestamp
+      last_win_rate_perc = win_rate_perc[:value]
+    end
+
+    last_win_rate_perc
+  end
+
+  def highest_win_rate_perc_long_between(start_time = nil, end_time = nil)
+    start_time ||= default_start_time
+    end_time ||= default_end_time
+
+    highest_win_rate_perc = nil
+
+    win_rate_perc_long_history.each do |win_rate_perc|
+      break if win_rate_perc[:timestamp] > end_time
+      next if win_rate_perc[:timestamp] < start_time
+
+      highest_win_rate_perc = win_rate_perc[:value] if highest_win_rate_perc.nil? || win_rate_perc[:value] > highest_win_rate_perc
+    end
+
+    highest_win_rate_perc
+  end
+
+  def lowest_win_rate_perc_long_between(start_time = nil, end_time = nil)
+    start_time ||= default_start_time
+    end_time ||= default_end_time
+
+    lowest_win_rate_perc = nil
+
+    win_rate_perc_long_history.each do |win_rate_perc|
+      break if win_rate_perc[:timestamp] > end_time
+      next if win_rate_perc[:timestamp] < start_time
+
+      lowest_win_rate_perc = win_rate_perc[:value] if lowest_win_rate_perc.nil? || win_rate_perc[:value] < lowest_win_rate_perc
+    end
+
+    lowest_win_rate_perc
+  end
+
+  def average_win_rate_perc_long_between(start_time = nil, end_time = nil)
+    start_time ||= default_start_time
+    end_time ||= default_end_time
+
+    total_win_rate_perc = 0
+    total_operations = 0
+
+    win_rate_perc_long_history.each do |win_rate_perc|
+      break if win_rate_perc[:timestamp] > end_time
+      next if win_rate_perc[:timestamp] < start_time
+
+      total_win_rate_perc += win_rate_perc[:value]
+      total_operations += 1
+    end
+
+    total_win_rate_perc / total_operations
+  end
+
+  # SAME METHODS BUT FOR SHORT HISTORY
+
+  def win_rate_perc_short_history
+    return @win_rate_perc_short_history if defined? @win_rate_perc_short_history
+
+    @win_rate_perc_short_history = []
+
+    number_of_win_operations = 0
+    number_of_loss_operations = 0
+    @operations.each do |operation|
+      next unless operation[:type] == :sell
+
+      operation[:value].positive? ? number_of_win_operations += 1 : number_of_loss_operations += 1
+      win_rate_perc = number_of_win_operations.zero? && number_of_loss_operations.zero? ? 0 : number_of_win_operations * 100.0 / (number_of_win_operations + number_of_loss_operations)
+      @win_rate_perc_short_history << { timestamp: operation[:timestamp], value: win_rate_perc }
+    end
+
+    @win_rate_perc_short_history
+  end
+
+  def win_rate_perc_short_at(timestamp = Time.now)
+    last_win_rate_perc = 0
+
+    win_rate_perc_short_history.each do |win_rate_perc|
+      break if win_rate_perc[:timestamp] > timestamp
+      last_win_rate_perc = win_rate_perc[:value]
+    end
+
+    last_win_rate_perc
+  end
+
+  def highest_win_rate_perc_short_between(start_time = nil, end_time = nil)
+    start_time ||= default_start_time
+    end_time ||= default_end_time
+
+    highest_win_rate_perc = nil
+
+    win_rate_perc_short_history.each do |win_rate_perc|
+      break if win_rate_perc[:timestamp] > end_time
+      next if win_rate_perc[:timestamp] < start_time
+
+      highest_win_rate_perc = win_rate_perc[:value] if highest_win_rate_perc.nil? || win_rate_perc[:value] > highest_win_rate_perc
+    end
+
+    highest_win_rate_perc
+  end
+
+  def lowest_win_rate_perc_short_between(start_time = nil, end_time = nil)
+    start_time ||= default_start_time
+    end_time ||= default_end_time
+
+    lowest_win_rate_perc = nil
+
+    win_rate_perc_short_history.each do |win_rate_perc|
+      break if win_rate_perc[:timestamp] > end_time
+      next if win_rate_perc[:timestamp] < start_time
+
+      lowest_win_rate_perc = win_rate_perc[:value] if lowest_win_rate_perc.nil? || win_rate_perc[:value] < lowest_win_rate_perc
+    end
+
+    lowest_win_rate_perc
+  end
+
+  def average_win_rate_perc_short_between(start_time = nil, end_time = nil)
+    start_time ||= default_start_time
+    end_time ||= default_end_time
+
+    total_win_rate_perc = 0
+    total_operations = 0
+
+    win_rate_perc_short_history.each do |win_rate_perc|
+      break if win_rate_perc[:timestamp] > end_time
+      next if win_rate_perc[:timestamp] < start_time
+
+      total_win_rate_perc += win_rate_perc[:value]
+      total_operations += 1
+    end
+
+    total_win_rate_perc / total_operations
+  end
+
+  # EXPECTANCY METHODS
+  ####################################################################################################################
+
+  # This function returns the expectancy history of the system.
+  # The expectancy is calculated by multiplying the average win by the win rate and subtracting the average loss by the loss rate.
+  # The expectancy history is an array of hashes with the following keys:
+  # - :timestamp: The timestamp of the operation.
+  # - :value: The expectancy of the system at that timestamp.
+  def expectancy_history
+    return @expectancy_history if defined? @expectancy_history
+
+    @expectancy_history = []
+
+    count_win = 0
+    count_loss = 0
+    value_win = 0
+    value_loss = 0
+    operations.each do |operation|
+      next unless %i[buy sell].include?(operation[:type])
+
+      if operation[:value].positive?
+        count_win += 1
+        value_win += operation[:value]
+      else
+        count_loss += 1
+        value_loss += operation[:value]
+      end
+
+      win_rate = count_win.zero? && count_loss.zero? ? 0 : count_win * 100.0 / (count_win + count_loss)
+      loss_rate = 100 - win_rate
+      avg_win = count_win.zero? ? 0 : value_win / count_win
+      avg_loss = count_loss.zero? ? 0 : value_loss / count_loss
+      expectancy = (avg_win * win_rate / 100) - (avg_loss * loss_rate / 100)
+      @expectancy_history << { timestamp: operation[:timestamp], value: expectancy }
+    end
+
+    @expectancy_history
+  end
+
+  # This function return the expectancy of the system at a given timestamp.
+  def expectancy_at(timestamp = Time.now)
+    last_expectancy = 0
+
+    expectancy_history.each do |expectancy|
+      break if expectancy[:timestamp] > timestamp
+      last_expectancy = expectancy[:value]
+    end
+
+    last_expectancy
+  end
+
+  # This function returns the highest expectancy of the system between two timestamps.
+  # If no timestamps are provided, it will return the highest expectancy of the system.
+  def highest_expectancy_between(start_time = nil, end_time = nil)
+    start_time ||= default_start_time
+    end_time ||= default_end_time
+
+    highest_expectancy = nil
+
+    expectancy_history.each do |expectancy|
+      break if expectancy[:timestamp] > end_time
+      next if expectancy[:timestamp] < start_time
+
+      highest_expectancy = expectancy[:value] if highest_expectancy.nil? || expectancy[:value] > highest_expectancy
+    end
+
+    highest_expectancy
+  end
+
+  # This function returns the lowest expectancy of the system between two timestamps.
+  # If no timestamps are provided, it will return the lowest expectancy of the system.
+  def lowest_expectancy_between(start_time = nil, end_time = nil)
+    start_time ||= default_start_time
+    end_time ||= default_end_time
+
+    lowest_expectancy = nil
+
+    expectancy_history.each do |expectancy|
+      break if expectancy[:timestamp] > end_time
+      next if expectancy[:timestamp] < start_time
+
+      lowest_expectancy = expectancy[:value] if lowest_expectancy.nil? || expectancy[:value] < lowest_expectancy
+    end
+
+    lowest_expectancy
+  end
+
+  # This function returns the average expectancy of the system between two timestamps.
+  # If no timestamps are provided, it will return the average expectancy of the system.
+  def average_expectancy_between(start_time = nil, end_time = nil)
+    start_time ||= default_start_time
+    end_time ||= default_end_time
+
+    total_expectancy = 0
+    total_operations = 0
+
+    expectancy_history.each do |expectancy|
+      break if expectancy[:timestamp] > end_time
+      next if expectancy[:timestamp] < start_time
+
+      total_expectancy += expectancy[:value]
+      total_operations += 1
+    end
+
+    total_expectancy / total_operations
+  end
+
+  # CONSISTENCY PERC METHODS
+  ####################################################################################################################
+
+  # This function returns the consistency percentage history of the system.
+  # The consistency percentage is calculated by dividing the sum of all trading days by the highest trading day.
+  # The consistency percentage history is an array of hashes with the following keys:
+  # - :timestamp: The timestamp of the operation.
+  # - :value: The consistency percentage of the system at that timestamp.
+  def consistency_perc_history
+    return @consistency_history if defined? @consistency_history
+
+    @consistency_history = []
+
+    operations_per_day = {}
+    operations.each do |operation|
+      next unless %i[buy sell].include?(operation[:type])
+
+      date = operation[:timestamp].to_date
+      operations_per_day[date] ||= []
+      operations_per_day[date] << operation
+    end
+
+    sum_of_trading_days = 0
+    max_trading_days = 0
+    operations_per_day.each_value do |daily_operations|
+      sum_of_trading_day = daily_operations.sum { |operation| operation[:value] }
+      max_trading_days = sum_of_trading_day if sum_of_trading_day > max_trading_days
+      sum_of_trading_days += sum_of_trading_day.abs
+
+      daily_consistency = sum_of_trading_days.zero? ? 0 : (1 - (max_trading_days / sum_of_trading_days)) * 100
+      @consistency_history << { timestamp: daily_operations.first[:timestamp], value: daily_consistency }
+    end
+
+    @consistency_history
+  end
+
+  # This function return the consistency percentage of the system at a given timestamp.
+  def consistency_perc_at(timestamp = Time.now)
+    last_consistency_perc = 0
+
+    consistency_perc_history.each do |consistency_perc|
+      break if consistency_perc[:timestamp] > timestamp
+      last_consistency_perc = consistency_perc[:value]
+    end
+
+    last_consistency_perc
+  end
+
+  # This function returns the highest consistency percentage of the system between two timestamps.
+  # If no timestamps are provided, it will return the highest consistency percentage of the system.
+  def highest_consistency_perc_between(start_time = nil, end_time = nil)
+    start_time ||= default_start_time
+    end_time ||= default_end_time
+
+    highest_consistency_perc = nil
+
+    consistency_perc_history.each do |consistency_perc|
+      break if consistency_perc[:timestamp] > end_time
+      next if consistency_perc[:timestamp] < start_time
+
+      highest_consistency_perc = consistency_perc[:value] if highest_consistency_perc.nil? || consistency_perc[:value] > highest_consistency_perc
+    end
+
+    highest_consistency_perc
+  end
+
+  # This function returns the lowest consistency percentage of the system between two timestamps.
+  # If no timestamps are provided, it will return the lowest consistency percentage of the system.
+  def lowest_consistency_perc_between(start_time = nil, end_time = nil)
+    start_time ||= default_start_time
+    end_time ||= default_end_time
+
+    lowest_consistency_perc = nil
+
+    consistency_perc_history.each do |consistency_perc|
+      break if consistency_perc[:timestamp] > end_time
+      next if consistency_perc[:timestamp] < start_time
+
+      lowest_consistency_perc = consistency_perc[:value] if lowest_consistency_perc.nil? || consistency_perc[:value] < lowest_consistency_perc
+    end
+
+    lowest_consistency_perc
+  end
+
+  # This function returns the average consistency percentage of the system between two timestamps.
+  # If no timestamps are provided, it will return the average consistency percentage of the system.
+  def average_consistency_perc_between(start_time = nil, end_time = nil)
+    start_time ||= default_start_time
+    end_time ||= default_end_time
+
+    total_consistency_perc = 0
+    total_operations = 0
+
+    consistency_perc_history.each do |consistency_perc|
+      break if consistency_perc[:timestamp] > end_time
+      next if consistency_perc[:timestamp] < start_time
+
+      total_consistency_perc += consistency_perc[:value]
+      total_operations += 1
+    end
+
+    total_consistency_perc / total_operations
+  end
+
+  # DRAWDOWN PERC METHODS
+  ####################################################################################################################
+
+  # This function returns the drawdown percentage history of the system.
+  # The drawdown percentage is calculated by dividing the drawdown by the highest balance.
+  # The drawdown percentage history is an array of hashes with the following keys:
+  # - :timestamp: The timestamp of the operation.
+  # - :value: The drawdown percentage of the system at that timestamp.
+  def drawdown_perc_history
+    return @drawdown_perc_history if defined? @drawdown_perc_history
+
+    @drawdown_perc_history = []
+    highest_balance = 0
+
+    balance_history.each do |balance|
+      highest_balance = balance[:value] if balance[:value] > highest_balance
+      drawdown = highest_balance - balance[:value]
+      drawdown_perc = highest_balance.zero? ? 0 : drawdown * 100 / highest_balance
+      @drawdown_perc_history << { timestamp: balance[:timestamp], value: drawdown_perc }
+    end
+
+    @drawdown_perc_history
+  end
+
+  # This function return the drawdown percentage of the system at a given timestamp.
+  def drawdown_perc_at(timestamp = Time.now)
+    last_drawdown_perc = 0
+
+    drawdown_perc_history.each do |drawdown_perc|
+      break if drawdown_perc[:timestamp] > timestamp
+      last_drawdown_perc = drawdown_perc[:value]
+    end
+
+    last_drawdown_perc
+  end
+
+  # This function returns the highest drawdown percentage of the system between two timestamps.
+  # If no timestamps are provided, it will return the highest drawdown percentage of the system.
+  def highest_drawdown_perc_between(start_time = nil, end_time = nil)
+    start_time ||= default_start_time
+    end_time ||= default_end_time
+
+    highest_drawdown_perc = nil
+
+    drawdown_perc_history.each do |drawdown_perc|
+      break if drawdown_perc[:timestamp] > end_time
+      next if drawdown_perc[:timestamp] < start_time
+
+      highest_drawdown_perc = drawdown_perc[:value] if highest_drawdown_perc.nil? || drawdown_perc[:value] > highest_drawdown_perc
+    end
+
+    highest_drawdown_perc
+  end
+
+  # This function returns the lowest drawdown percentage of the system between two timestamps.
+  # If no timestamps are provided, it will return the lowest drawdown percentage of the system.
+  def lowest_drawdown_perc_between(start_time = nil, end_time = nil)
+    start_time ||= default_start_time
+    end_time ||= default_end_time
+
+    lowest_drawdown_perc = nil
+
+    drawdown_perc_history.each do |drawdown_perc|
+      break if drawdown_perc[:timestamp] > end_time
+      next if drawdown_perc[:timestamp] < start_time
+
+      lowest_drawdown_perc = drawdown_perc[:value] if lowest_drawdown_perc.nil? || drawdown_perc[:value] < lowest_drawdown_perc
+    end
+
+    lowest_drawdown_perc
+  end
+
+  # This function returns the average drawdown percentage of the system between two timestamps.
+  # If no timestamps are provided, it will return the average drawdown percentage of the system.
+  def average_drawdown_perc_between(start_time = nil, end_time = nil)
+    start_time ||= default_start_time
+    end_time ||= default_end_time
+
+    total_drawdown_perc = 0
+    total_operations = 0
+
+    drawdown_perc_history.each do |drawdown_perc|
+      break if drawdown_perc[:timestamp] > end_time
+      next if drawdown_perc[:timestamp] < start_time
+
+      total_drawdown_perc += drawdown_perc[:value]
+      total_operations += 1
+    end
+
+    total_drawdown_perc / total_operations
+  end
 
   # DRAWDOWN METHODS
   ####################################################################################################################
