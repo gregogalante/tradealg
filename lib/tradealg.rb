@@ -5,20 +5,19 @@ class Tradealg
     @operations = setup_operations(operations)
   end
 
-  # PER_GIULIO: riesci a mettermi qui la lista di tutti i dati che dovrebbero servirci?
   # ----------------------------------------------------
-  # EQUITY   _history (history of monetary equity/balance)
-  # EQUITY_MIN
-  # EQUITY_MAX
-  # GAIN_MONETARY   _history (history of monetary gain/P&L)
+  # EQUITY   _history (history of monetary equity/balance) ✅ balance_history
+  # EQUITY_MIN ✅ lowest_balance_between
+  # EQUITY_MAX ✅ highest_balance_between
+  # GAIN_MONETARY   _history (history of monetary gain/P&L) ✅ gain_history
   # GAIN_PERCENT   _history (history of percent gain/P&L relativo ad EQUITY iniziale assoluta)
   # GAIN_ABSOLUTE (gain inteso come gain percentuale sul totale dei depositi: i nuovi depositi influenzano l'absolute gain)
   # TOTAL PROFIT = GAIN_MONETARY _between all available history (not selected history)
   # DRAWDOWN_MONETARY   _history (history of monetary drawdown)
   # DRAWDOWN_PERCENT   _history (history of percent drawdown relativo ad EQUITY iniziale assoluta)
-  # MAX_DRAWDOWN_MONETARY   
+  # MAX_DRAWDOWN_MONETARY
   # MAX_DRAWDOWN_PERCENT
-  # AVG_DRAWDOWN_MONETARY   
+  # AVG_DRAWDOWN_MONETARY
   # AVG_DRAWDOWN_PERCENT
   # CONSISTENCY
   # EXPECTANCY
@@ -42,105 +41,286 @@ class Tradealg
   # ACTUAL DRAWDOWN FROM THIRD LAST MONDAY
   # ----------------------------------------------------
 
-  # In generale, per ogni dato, io manterrei una struttura in cui abbiamo sempre:
-  # - un metodo *_history che restituisce un array con lo storico del valore ad ogni timestamp
-  # - un metodo *_at che restituisce il valore al timestamp specificato
-  # - nel caso di highest, lowest, average, etc, un metodo *_between che restituisce il valore tra due timestamp
+  # DRAWDOWN METHODS
+  ####################################################################################################################
 
-  # PROFIT METHODS
-  ##
-
-  # This function returns the profit history of the system.
-  # The profit is calculated by summing all the operations of type :buy and :sell.
-  # The profit history is an array of hashes with the following keys:
+  # This function returns the drawdown history of the system.
+  # The drawdown is calculated by subtracting the balance from the highest balance.
+  # The drawdown history is an array of hashes with the following keys:
   # - :timestamp: The timestamp of the operation.
-  # - :value: The profit of the system at that timestamp.
-  def profit_history
-    return @profit_history if defined? @profit_history
+  # - :value: The drawdown of the system at that timestamp.
+  def drawdown_history
+    return @drawdown_history if defined? @drawdown_history
 
-    @profit_history = []
-    profit = 0
+    @drawdown_history = []
+    highest_balance = 0
+
+    balance_history.each do |balance|
+      highest_balance = balance[:value] if balance[:value] > highest_balance
+      drawdown = highest_balance - balance[:value]
+      @drawdown_history << { timestamp: balance[:timestamp], value: drawdown }
+    end
+
+    @drawdown_history
+  end
+
+  # This function return the drawdown of the system at a given timestamp.
+  def drawdown_at(timestamp = Time.now)
+    last_drawdown = 0
+
+    drawdown_history.each do |drawdown|
+      break if drawdown[:timestamp] > timestamp
+      last_drawdown = drawdown[:value]
+    end
+
+    last_drawdown
+  end
+
+  # This function returns the highest drawdown of the system between two timestamps.
+  # If no timestamps are provided, it will return the highest drawdown of the system.
+  def highest_drawdown_between(start_time = nil, end_time = nil)
+    start_time ||= default_start_time
+    end_time ||= default_end_time
+
+    highest_drawdown = nil
+
+    drawdown_history.each do |drawdown|
+      break if drawdown[:timestamp] > end_time
+      next if drawdown[:timestamp] < start_time
+
+      highest_drawdown = drawdown[:value] if highest_drawdown.nil? || drawdown[:value] > highest_drawdown
+    end
+
+    highest_drawdown
+  end
+
+  # This function returns the lowest drawdown of the system between two timestamps.
+  # If no timestamps are provided, it will return the lowest drawdown of the system.
+  def lowest_drawdown_between(start_time = nil, end_time = nil)
+    start_time ||= default_start_time
+    end_time ||= default_end_time
+
+    lowest_drawdown = nil
+
+    drawdown_history.each do |drawdown|
+      break if drawdown[:timestamp] > end_time
+      next if drawdown[:timestamp] < start_time
+
+      lowest_drawdown = drawdown[:value] if lowest_drawdown.nil? || drawdown[:value] < lowest_drawdown
+    end
+
+    lowest_drawdown
+  end
+
+  # This function returns the average drawdown of the system between two timestamps.
+  # If no timestamps are provided, it will return the average drawdown of the system.
+  def average_drawdown_between(start_time = nil, end_time = nil)
+    start_time ||= default_start_time
+    end_time ||= default_end_time
+
+    total_drawdown = 0
+    total_operations = 0
+
+    drawdown_history.each do |drawdown|
+      break if drawdown[:timestamp] > end_time
+      next if drawdown[:timestamp] < start_time
+
+      total_drawdown += drawdown[:value]
+      total_operations += 1
+    end
+
+    total_drawdown / total_operations
+  end
+
+  # GAIN PERC METHODS
+  ####################################################################################################################
+
+  # This function returns the gain percentage history of the system.
+  # The gain percentage is calculated by summing all the operations of type :buy and :sell and dividing it by the deposit operations at that timestamp.
+  # The gain percentage history is an array of hashes with the following keys:
+  # - :timestamp: The timestamp of the operation.
+  # - :value: The gain percentage of the system at that timestamp.
+  def gain_perc_history
+    return @gain_perc_history if defined? @gain_perc_history
+
+    @gain_perc_history = []
+    gain = 0
+    deposit = 0
+
+    @operations.each do |operation|
+      deposit += operation[:value] if [:deposit, :withdraw].include?(operation[:type])
+      next unless [:buy, :sell].include?(operation[:type])
+
+      gain += operation[:value]
+      gain_perc = deposit.zero? ? 0 : gain * 100 / deposit
+      @gain_perc_history << { timestamp: operation[:timestamp], value: gain_perc }
+    end
+
+    @gain_perc_history
+  end
+
+  # This function return the gain percentage of the system at a given timestamp.
+  def gain_perc_at(timestamp = Time.now)
+    last_gain_perc = 0
+
+    gain_perc_history.each do |gain_perc|
+      break if gain_perc[:timestamp] > timestamp
+      last_gain_perc = gain_perc[:value]
+    end
+
+    last_gain_perc
+  end
+
+  # This function returns the highest gain percentage of the system between two timestamps.
+  # If no timestamps are provided, it will return the highest gain percentage of the system.
+  def highest_gain_perc_between(start_time = nil, end_time = nil)
+    start_time ||= default_start_time
+    end_time ||= default_end_time
+
+    highest_gain_perc = nil
+
+    gain_perc_history.each do |gain_perc|
+      break if gain_perc[:timestamp] > end_time
+      next if gain_perc[:timestamp] < start_time
+
+      highest_gain_perc = gain_perc[:value] if highest_gain_perc.nil? || gain_perc[:value] > highest_gain_perc
+    end
+
+    highest_gain_perc
+  end
+
+  # This function returns the lowest gain percentage of the system between two timestamps.
+  # If no timestamps are provided, it will return the lowest gain percentage of the system.
+  def lowest_gain_perc_between(start_time = nil, end_time = nil)
+    start_time ||= default_start_time
+    end_time ||= default_end_time
+
+    lowest_gain_perc = nil
+
+    gain_perc_history.each do |gain_perc|
+      break if gain_perc[:timestamp] > end_time
+      next if gain_perc[:timestamp] < start_time
+
+      lowest_gain_perc = gain_perc[:value] if lowest_gain_perc.nil? || gain_perc[:value] < lowest_gain_perc
+    end
+
+    lowest_gain_perc
+  end
+
+  # This function returns the average gain percentage of the system between two timestamps.
+  # If no timestamps are provided, it will return the average gain percentage of the system.
+  def average_gain_perc_between(start_time = nil, end_time = nil)
+    start_time ||= default_start_time
+    end_time ||= default_end_time
+
+    total_gain_perc = 0
+    total_operations = 0
+
+    gain_perc_history.each do |gain_perc|
+      break if gain_perc[:timestamp] > end_time
+      next if gain_perc[:timestamp] < start_time
+
+      total_gain_perc += gain_perc[:value]
+      total_operations += 1
+    end
+
+    total_gain_perc / total_operations
+  end
+
+  # GAIN METHODS
+  ####################################################################################################################
+
+  # This function returns the gain history of the system.
+  # The gain is calculated by summing all the operations of type :buy and :sell.
+  # The gain history is an array of hashes with the following keys:
+  # - :timestamp: The timestamp of the operation.
+  # - :value: The gain of the system at that timestamp.
+  def gain_history
+    return @gain_history if defined? @gain_history
+
+    @gain_history = []
+    gain = 0
 
     @operations.each do |operation|
       next unless [:buy, :sell].include?(operation[:type])
 
-      profit += operation[:value]
-      @profit_history << { timestamp: operation[:timestamp], value: profit }
+      gain += operation[:value]
+      @gain_history << { timestamp: operation[:timestamp], value: gain }
     end
 
-    @profit_history
+    @gain_history
   end
 
-  # This function return the profit of the system at a given timestamp.
-  def profit_at(timestamp = Time.now)
-    last_profit = 0
+  # This function return the gain of the system at a given timestamp.
+  def gain_at(timestamp = Time.now)
+    last_gain = 0
 
-    profit_history.each do |profit|
-      break if profit[:timestamp] > timestamp
-      last_profit = profit[:value]
+    gain_history.each do |gain|
+      break if gain[:timestamp] > timestamp
+      last_gain = gain[:value]
     end
 
-    last_profit
+    last_gain
   end
 
-  # This function returns the highest profit of the system between two timestamps.
-  # If no timestamps are provided, it will return the highest profit of the system.
-  def highest_profit_between(start_time = nil, end_time = nil)
+  # This function returns the highest gain of the system between two timestamps.
+  # If no timestamps are provided, it will return the highest gain of the system.
+  def highest_gain_between(start_time = nil, end_time = nil)
     start_time ||= default_start_time
     end_time ||= default_end_time
 
-    highest_profit = nil
+    highest_gain = nil
 
-    profit_history.each do |profit|
-      break if profit[:timestamp] > end_time
-      next if profit[:timestamp] < start_time
+    gain_history.each do |gain|
+      break if gain[:timestamp] > end_time
+      next if gain[:timestamp] < start_time
 
-      highest_profit = profit[:value] if highest_profit.nil? || profit[:value] > highest_profit
+      highest_gain = gain[:value] if highest_gain.nil? || gain[:value] > highest_gain
     end
 
-    highest_profit
+    highest_gain
   end
 
-  # This function returns the lowest profit of the system between two timestamps.
-  # If no timestamps are provided, it will return the lowest profit of the system.
-  def lowest_profit_between(start_time = nil, end_time = nil)
+  # This function returns the lowest gain of the system between two timestamps.
+  # If no timestamps are provided, it will return the lowest gain of the system.
+  def lowest_gain_between(start_time = nil, end_time = nil)
     start_time ||= default_start_time
     end_time ||= default_end_time
 
-    lowest_profit = nil
+    lowest_gain = nil
 
-    profit_history.each do |profit|
-      break if profit[:timestamp] > end_time
-      next if profit[:timestamp] < start_time
+    gain_history.each do |gain|
+      break if gain[:timestamp] > end_time
+      next if gain[:timestamp] < start_time
 
-      lowest_profit = profit[:value] if lowest_profit.nil? || profit[:value] < lowest_profit
+      lowest_gain = gain[:value] if lowest_gain.nil? || gain[:value] < lowest_gain
     end
 
-    lowest_profit
+    lowest_gain
   end
 
-  # This function returns the average profit of the system between two timestamps.
-  # If no timestamps are provided, it will return the average profit of the system.
-  def average_profit_between(start_time = nil, end_time = nil)
+  # This function returns the average gain of the system between two timestamps.
+  # If no timestamps are provided, it will return the average gain of the system.
+  def average_gain_between(start_time = nil, end_time = nil)
     start_time ||= default_start_time
     end_time ||= default_end_time
 
-    total_profit = 0
+    total_gain = 0
     total_operations = 0
 
-    profit_history.each do |profit|
-      break if profit[:timestamp] > end_time
-      next if profit[:timestamp] < start_time
+    gain_history.each do |gain|
+      break if gain[:timestamp] > end_time
+      next if gain[:timestamp] < start_time
 
-      total_profit += profit[:value]
+      total_gain += gain[:value]
       total_operations += 1
     end
 
-    total_profit / total_operations
+    total_gain / total_operations
   end
 
   # BALANCE METHODS
-  ##
+  ####################################################################################################################
 
   # This function returns the balance history of the system.
   # The balance is calculated by summing all the operations.
@@ -232,7 +412,7 @@ class Tradealg
   # FILTERED OPERATIONS
   # These methods are used to filter the operations by type.
   # They are memoized to avoid recalculating them every time they are called.
-  ##
+  ####################################################################################################################
 
   def deposit_operations
     @deposit_operations ||= @operations.select { |operation| operation[:type] == :deposit }
@@ -263,6 +443,7 @@ class Tradealg
   # DEFAULT TIME RANGE
   # These methods are used to define the default time range for *_between methods.
   # They are used when the start_time or end_time are not provided.
+  ####################################################################################################################
 
   def default_start_time
     @operations.first.dig(:timestamp) || Time.now
@@ -271,6 +452,9 @@ class Tradealg
   def default_end_time
     @operations.last.dig(:timestamp) || Time.now
   end
+
+  # OTHER FUNCTIONS
+  ####################################################################################################################
 
   # This method is used to validate and setup the operations before storing them.
   # Operations must be an array of hashes.

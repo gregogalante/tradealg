@@ -17,6 +17,114 @@ class TradealgTest < Minitest::Test
     assert_equal([], tradealg.operations)
   end
 
+  # DRAWDOWN METHODS
+  ####################################################################################################################
+
+  def test_drawdown
+    # Test drawdown_at
+    # The drawdown at the beginning is 0
+    assert_equal(0, tradealg.drawdown_at(before_first_timestamp))
+    # After the first day, the drawdown is 0
+    assert_equal(0, tradealg.drawdown_at(timestamp_at(1)))
+    # After the second day, the drawdown is 0
+    assert_equal(0, tradealg.drawdown_at(timestamp_at(2)))
+    # After the third day, the drawdown is 0
+    assert_equal(0, tradealg.drawdown_at(timestamp_at(3)))
+    # After the fourth day, the drawdown is 0
+    assert_equal(0, tradealg.drawdown_at(timestamp_at(4)))
+    # After the fifth day, the drawdown is 0
+    assert_equal(0, tradealg.drawdown_at(timestamp_at(5)))
+    # After the sixth day, the drawdown is 10
+    assert_equal(10, tradealg.drawdown_at(timestamp_at(6)))
+    # After the seventh day, the drawdown is 20
+    assert_equal(20, tradealg.drawdown_at(timestamp_at(7)))
+
+    # Test highest_drawdown_between
+    # The highest drawdown without timestamps is 20
+    assert_equal(20, tradealg.highest_drawdown_between)
+    # The highest drawdown between the first and the last day is 20
+    assert_equal(20, tradealg.highest_drawdown_between(first_timestamp, last_timestamp))
+    # The highest drawdown between the sixth and the seventh day is 20
+    assert_equal(20, tradealg.highest_drawdown_between(timestamp_at(6), timestamp_at(7)))
+
+    # Test average_drawdown_between
+    # The average drawdown without timestamp is 4.29
+    assert_equal(4.29, tradealg.average_drawdown_between.round(2))
+  end
+
+  # GAIN PERC METHODS
+  ####################################################################################################################
+
+  def test_gain_perc
+    # Test gain_perc_at
+    # The gain percentage at the beginning is 0
+    assert_equal(0, tradealg.gain_perc_at(before_first_timestamp))
+    # After the first day, the gain is 0
+    assert_equal(0, tradealg.gain_perc_at(timestamp_at(1)))
+    # After the second day, the gain is 0
+    assert_equal(0, tradealg.gain_perc_at(timestamp_at(2)))
+    # After the third day, the gain is 0
+    assert_equal(0, tradealg.gain_perc_at(timestamp_at(3)))
+    # After the fourth day, the gain is 10 * 100 / 175
+    assert_equal(10 * 100.0 / 175, tradealg.gain_perc_at(timestamp_at(4)))
+    # After the fifth day, the gain is 20 * 100 / 175
+    assert_equal(20 * 100.0 / 175, tradealg.gain_perc_at(timestamp_at(5)))
+    # After the sixth day, the gain is 10 * 100 / 175
+    assert_equal(10 * 100.0 / 175, tradealg.gain_perc_at(timestamp_at(6)))
+    # After the seventh day, the gain is 0
+    assert_equal(0, tradealg.gain_perc_at(timestamp_at(7)))
+
+    # Test highest_gain_perc_between
+    # The highest gain percentage without timestamps is 20 * 100 / 175
+    assert_equal(20 * 100.0 / 175, tradealg.highest_gain_perc_between)
+    # The highest gain percentage between the first and the last day is 20 * 100 / 175
+    assert_equal(20 * 100.0 / 175, tradealg.highest_gain_perc_between(first_timestamp, last_timestamp))
+    # The highest gain percentage between the fifth and the sixth day is 20 * 100 / 175
+    assert_equal(20 * 100.0 / 175, tradealg.highest_gain_perc_between(timestamp_at(5), timestamp_at(6)))
+
+    # Test average_gain_perc_between
+    # The average gain percentage without timestamps is 10 * 100 / 175
+    assert_equal(10 * 100.0 / 175, tradealg.average_gain_perc_between)
+  end
+
+  # GAIN METHODS
+  ####################################################################################################################
+
+  def test_gain
+    # Test gain_at
+    # The gain at the beginning is 0
+    assert_equal(0, tradealg.gain_at(before_first_timestamp))
+    # After the first day, the gain is 0
+    assert_equal(0, tradealg.gain_at(timestamp_at(1)))
+    # After the second day, the gain is 0
+    assert_equal(0, tradealg.gain_at(timestamp_at(2)))
+    # After the third day, the gain is 0
+    assert_equal(0, tradealg.gain_at(timestamp_at(3)))
+    # After the fourth day, the gain is 10
+    assert_equal(10, tradealg.gain_at(timestamp_at(4)))
+    # After the fifth day, the gain is 20
+    assert_equal(20, tradealg.gain_at(timestamp_at(5)))
+    # After the sixth day, the gain is 10
+    assert_equal(10, tradealg.gain_at(timestamp_at(6)))
+    # After the seventh day, the gain is 0
+    assert_equal(0, tradealg.gain_at(timestamp_at(7)))
+
+    # Test highest_gain_between
+    # The highest gain without timestamps is 20
+    assert_equal(20, tradealg.highest_gain_between)
+    # The highest gain between the first and the last day is 20
+    assert_equal(20, tradealg.highest_gain_between(first_timestamp, last_timestamp))
+    # The highest gain between the fifth and the sixth day is 20
+    assert_equal(20, tradealg.highest_gain_between(timestamp_at(5), timestamp_at(6)))
+
+    # Test average_gain_between
+    # The average gain without timestamps is 10
+    assert_equal(10, tradealg.average_gain_between)
+  end
+
+  # BALANCE METHODS
+  ####################################################################################################################
+
   def test_balance
     # Test balance_at
     # The balance at the beginning is 0
@@ -51,46 +159,6 @@ class TradealgTest < Minitest::Test
     assert_equal(100, tradealg.lowest_balance_between(first_timestamp, last_timestamp))
     # The lowest balance between the sixth and the seventh day is 175
     assert_equal(175, tradealg.lowest_balance_between(timestamp_at(6), timestamp_at(7)))
-  end
-
-  def test_profit
-    # Test profit_at
-    # The profit at the beginning is 0
-    assert_equal(0, tradealg.profit_at(before_first_timestamp))
-    # After the first day, the profit is 0
-    assert_equal(0, tradealg.profit_at(timestamp_at(1)))
-    # After the second day, the profit is 0
-    assert_equal(0, tradealg.profit_at(timestamp_at(2)))
-    # After the third day, the profit is 0
-    assert_equal(0, tradealg.profit_at(timestamp_at(3)))
-    # After the fourth day, the profit is 10
-    assert_equal(10, tradealg.profit_at(timestamp_at(4)))
-    # After the fifth day, the profit is 20
-    assert_equal(20, tradealg.profit_at(timestamp_at(5)))
-    # After the sixth day, the profit is 10
-    assert_equal(10, tradealg.profit_at(timestamp_at(6)))
-    # After the seventh day, the profit is 0
-    assert_equal(0, tradealg.profit_at(timestamp_at(7)))
-
-    # Test highest_profit_between
-    # The highest profit without timestamps is 20
-    assert_equal(20, tradealg.highest_profit_between)
-    # The highest profit between the first and the last day is 20
-    assert_equal(20, tradealg.highest_profit_between(first_timestamp, last_timestamp))
-    # The highest profit between the fifth and the sixth day is 20
-    # PER_GIULIO: In questo caso è giusto 20 o dovrebbe essere 10? Nel caso in cui sia 10, forse ho sbagliato nomenclatura, ovvero questa cosa che sto calcolando non è il profitto ma il xxx?
-    assert_equal(20, tradealg.highest_profit_between(timestamp_at(5), timestamp_at(6)))
-
-    # Test average_profit_between
-    # The average profit without timestamps is 10
-    assert_equal(10, tradealg.average_profit_between)
-    # PER_GIULIO: In linea con il dubbio sopra, è corretto che l'average sia 10? E' calcolato considerando:
-    # - Giorno 1, 2, 3: non vengono considerati in quanto non ci sono operazioni di buy o sell
-    # - Giorno 4: 10
-    # - Giorno 5: 20
-    # - Giorno 6: 10
-    # - Giorno 7: 0
-    # Quindi (10 + 20 + 10 + 0) / 4 = 10
   end
 
   private
