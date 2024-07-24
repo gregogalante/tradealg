@@ -6,6 +6,42 @@ class Tradealg
   end
 
   # PER_GIULIO: riesci a mettermi qui la lista di tutti i dati che dovrebbero servirci?
+  # ----------------------------------------------------
+  # EQUITY   _history (history of monetary equity/balance)
+  # EQUITY_MIN
+  # EQUITY_MAX
+  # GAIN_MONETARY   _history (history of monetary gain/P&L)
+  # GAIN_PERCENT   _history (history of percent gain/P&L relativo ad EQUITY iniziale assoluta)
+  # GAIN_ABSOLUTE (gain inteso come gain percentuale sul totale dei depositi: i nuovi depositi influenzano l'absolute gain)
+  # TOTAL PROFIT = GAIN_MONETARY _between all available history (not selected history)
+  # DRAWDOWN_MONETARY   _history (history of monetary drawdown)
+  # DRAWDOWN_PERCENT   _history (history of percent drawdown relativo ad EQUITY iniziale assoluta)
+  # MAX_DRAWDOWN_MONETARY   
+  # MAX_DRAWDOWN_PERCENT
+  # AVG_DRAWDOWN_MONETARY   
+  # AVG_DRAWDOWN_PERCENT
+  # CONSISTENCY
+  # EXPECTANCY
+  # PROFIT FACTOR
+  # WIN RATE
+  # WIN RATE LONG
+  # WIN RATE SHORT
+  # RISK REWARD
+  # BEST TRADE
+  # WORST TRADE
+  # AVERAGE WIN
+  # AVERAGE LOSS
+  # MONTHLY PROFIT
+  # MONTHLY DRAWDOWN STANDARD DEVIATION
+  # SORTINO RATIO
+  # MAX DRAWDOWN FROM LAST MONDAY
+  # MAX DRAWDOWN FROM SECOND LAST MONDAY
+  # MAX DRAWDOWN FROM THIRD LAST MONDAY
+  # ACTUAL DRAWDOWN FROM LAST MONDAY
+  # ACTUAL DRAWDOWN FROM SECOND LAST MONDAY
+  # ACTUAL DRAWDOWN FROM THIRD LAST MONDAY
+  # ----------------------------------------------------
+
   # In generale, per ogni dato, io manterrei una struttura in cui abbiamo sempre:
   # - un metodo *_history che restituisce un array con lo storico del valore ad ogni timestamp
   # - un metodo *_at che restituisce il valore al timestamp specificato
