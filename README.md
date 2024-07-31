@@ -1,5 +1,7 @@
 # Tradealg
 
+Trading Algorithm in pure Ruby.
+
 ## Test gem
 
 ```bash
